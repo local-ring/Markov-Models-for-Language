@@ -1,5 +1,5 @@
 # preprocess.R
-setwd("/Users/aolongli/Desktop/2023-Fall/S610/final") 
+setwd("/Users/aolongli/Desktop/2023-Fall/S610/S610-final-project") 
 library(dplyr)
 library(readr)
 

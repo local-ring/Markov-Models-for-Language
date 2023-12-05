@@ -3,21 +3,29 @@ source("training.R")
 
 # get the input from the user
 main <- function(){
-  feed <- readline("Please enter the context: ")
-  length <- as.integer(readline("Please enter the length of the text: "))
   n <- as.integer(readline("Please enter the n: "))
+  feed <- readline("Please enter your context: ")
+  length <- as.integer(readline("Please enter the total length of text: "))
   new_model <- readline("Do you want to train a new model? (y/n): ")
   
   if (new_model == "y"){
-    new_model <- train_model("train", n)
-    saveRDS(new_model, "model/user_model.rds")
-    sample <- generate_text(new_model, length, n, feed = feed)
+    model <- train_model("train", n)
+    saveRDS(model, "model/user_model.rds")
+    sample <- generate_text(model, length, n, feed = feed)
     
     cat(generate_readable_text(sample))
   } else {
+    # list all valid models]
+    models <- list.files("model", pattern = "*.rds")
+    cat("The following models are available:\n")
+    for (i in 1:length(models)){
+      cat(models[i], "\n")
+    }
+    model_name <- readline("Please enter the name of the model: ")
     # load the model
-    baby_model <- readRDS("model/basic_model.rds")
-    sample <- generate_text(baby_model, length, n, feed = feed)
+    model_path <- paste0("model/", model_name)
+    model <- readRDS(model_path)
+    sample <- generate_text(model, length, n, feed = feed)
     cat(generate_readable_text(sample))
   }
 }
