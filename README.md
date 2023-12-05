@@ -12,9 +12,9 @@ We have three files
 
 We have three folders:
 
-- `model`: contains the model (Markov transition dataframe and last word-punctuation dataframe) trained.
-- `train`: contains the legal downloaded trainning text. All available novels of Sherlock Holmes.
-- `book`: contains the some books professor provided for first assignment. User could train if you don't like Sherlock Holmes.
+- `model`: contains three pre-trained model (Markov transition dataframe and last word-punctuation dataframe).
+- `train`: contains the legally downloaded trainning text. All available novels of Sherlock Holmes.
+- `books`: contains the some books professor provided for first assignment. User could train if you don't like Sherlock Holmes.
 
 ## 
 
