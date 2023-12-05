@@ -50,6 +50,7 @@ last_word_p <- function(text) {
     # extract the last word
     last_word <- sub("\\W+$", "", sentence)
     last_word <- tail(unlist(strsplit(last_word, "\\s+")), 1)
+    last_word <- paste(last_word, "")
     
     punctuation <- regmatches(sentence, regexpr("\\W+$", sentence))
     
@@ -79,7 +80,7 @@ add_special_token <- function(text){
   # add start and end tokens to each sentence
   sentences <- lapply(sentences, function(sentence) {
     # paste("<s>", sentence, "</s>")
-    # replace the punctuation with </s>
+    # replace the last punctuation with </s>
     sentence <- sub("\\W+$", " </s>", sentence)
   })
   
@@ -165,10 +166,7 @@ train_model <- function(directory, n=2){
   return(model)
 }
 
-baby_model <- train_model("train", 3)
-# now we can use the model to generate the text
-
-generate_text <- function(model, length, feed = NULL, n = 2){
+generate_text <- function(model, len, feed = "", n = 2){
   # first we need to get the transition probability
   transition_prob <- model$transition_prob
   last_word_prob <- model$last_word
@@ -176,9 +174,9 @@ generate_text <- function(model, length, feed = NULL, n = 2){
   # then we need to get the first word
   # if the user feed some context, we use the context as the first ngram
   # if not, we randomly sample the first word
-  if (!is.null(feed)){
+  if (feed != ""){
     first_ngram <- tolower(feed)
-    if (length(feed) >= length){
+    if (length(feed) >= len){
       stop("The length of the feed is longer than the length of the text requested")
     }
   }
@@ -191,29 +189,28 @@ generate_text <- function(model, length, feed = NULL, n = 2){
 
   text <- character(0)
   text <- c(text, first_ngram)
-  print(text)
   
   # then we need to get the rest of the text
   word_count <- length(text)
-  start_pos <- length(text) + 1
-  while (word_count < length){
+  i <- length(text) + 1 # the index of the next word
+
+  while (word_count < len | text[length(text)] != "</s>"){
     # get the previous n-1 words
-    i <- start_pos
+
     start <- i-1 - (n-2)
     end <- i-1
 
     previous_ngram <- text[start:end]
     previous_ngram <- paste(previous_ngram, collapse = " ")
-    print(previous_ngram)
+
     
     # get the possible next words at i-th position
     next_words <- transition_prob %>% 
-      filter(previous == previous_ngram) %>%
-      select(current, prob)
+      filter(previous == previous_ngram) 
 
     # get the current word
     current_word <- sample(next_words$current, 1, prob = next_words$prob)
-    print(current_word)
+
   
     if (current_word != "</s>") {
       word_count <- word_count + 1
@@ -225,23 +222,30 @@ generate_text <- function(model, length, feed = NULL, n = 2){
   }
   
   ### remove end token with punctuation ###
-  
-  # for (i in 1:length(text)){
-  #   if (text[i] == "</s>"){
-  #       prev_word <- text[i-1]
-  #       available_punctuation <- last_word_prob$punctuation %>% 
-  #         filter(last_word == prev_word)
-  #       punctuation <- sample(available_punctuation$punctuation, 
-  #                             1,
-  #                             prob = available_punctuation$prob)
-  #       text[i] <- punctuation
-  #   }
-  # }
-  # 
+  print(text)
+
+  for (i in 1:length(text)){
+    if (text[i] == "</s>"){
+        prev_word <- text[i-1]
+        print(prev_word)
+        prev_word <- paste(prev_word, "")
+        available_punctuation <- last_word_prob%>%
+          filter(last_word == prev_word)
+        print(available_punctuation)
+        punctuation <- sample(available_punctuation$punctuation,
+                              1,
+                              prob = available_punctuation$prob)
+        text[i] <- punctuation
+    }
+  }
+
+  ###
+
   return(text)
 }
 
-sample <- generate_text(baby_model, 100, n=3, feed = "sherlock holmes")
+
+
 # now we need to print the text, a readable version
 # we will capitalize the first letter of the first word and the words after
 # the punctuation. 
@@ -254,6 +258,7 @@ capitalize_first_letter <- function(text){
   return(text)
 }
 
+
 generate_readable_text <- function(text){
   # first we need to capitalize the first letter of the first word
   text[1] <- capitalize_first_letter(text[1])
@@ -264,24 +269,30 @@ generate_readable_text <- function(text){
       text[i] <- capitalize_first_letter(text[i])
     }
   }
-  
+
   # then we need to add space between the words
   # if the next word is a punctuation, no need to add a space.
   for (i in 2:length(text)){
     if (text[i] %in% c(".", "?", "!")){
-      text[i-1] <- paste(text[i-1], sep = "")
+      text[i - 1] <- paste0(text[i - 1], text[i])
+      text[i] <- ""
     } else {
-      text[i-1] <- paste(text[i-1], sep = " ")
-    }
+      text[i-1] <- paste(text[i-1], "")
+    } 
   }
   
-  # then we need to add space between the last word and the punctuation
-  text[length(text)] <- paste(text[length(text)], sep = "")
+  # return plain text as a string
+  text <- paste(text, collapse = "")
   
   return(text)
 }
 
+basic_model <- train_model("train", 3)
+# now we can use the model to generate the text
+sample <- generate_text(basic_model, 100, n=3, feed = "i am a")
+sample
 cat(generate_readable_text(sample))
 
-
+# save the model
+saveRDS(basic_model, "basic_model.rds")
 
