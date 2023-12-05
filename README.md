@@ -1,4 +1,6 @@
-# S610 Final Project: Markov Models for Language:
+# S610 Final Project: Markov Models for Language
+
+by Aolong Li
 
 We have three files
 
