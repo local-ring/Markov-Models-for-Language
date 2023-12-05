@@ -9,25 +9,83 @@ load_train_data <- function(directory){
   # first we need to get the directory of training folder
   booklist <- list.files(directory, full.names=TRUE)
   
-  # read the date from book in the booklist
+  # read the data from book in the booklist
   train <- lapply(booklist, readr::read_file) %>% unlist()
   train_data <- paste(train, collapse = " ")
-  # not sure if we need to split it with \\s+ or \\W+
-  # now I think it would be more general to use \\s+ so that we keep
-  # the punctuation. but let us start with the \\W+ first 
-  tokens <- unlist(strsplit(train_data, "\\s+"))
-  return(tokens)
+  return(train_data)
 }
 
 
 # we should preprocess the data, turn it into lowercase
-# for generating purpose, we can change it back if necessary
+# also, I want to remove any non-alphanumeric characters except for punctuation
+# , . ! ?
 
 preprocess <- function(text){
   text <- tolower(text)
+  text <- gsub("[^[:alnum:],.!?]", " ", text)
   return(text)
 }
 
+tokenize_words <- function(text){
+  # not sure if we need to split it with \\s+ or \\W+
+  # now I think it would be more general to use \\s+ so that we keep
+  # the punctuation. but let us start with the \\W+ first 
+  tokens <- unlist(strsplit(text, "\\s+"))
+  return(tokens)
+}
+
+
+tokenize_sentences <- function(text){
+  # split text into sentences with punctuation
+  pattern <- "(?<!\\w\\d[.])(?<![A-Z][a-z][.])(?<=[.!?])\\s+"
+  sentences <- unlist(strsplit(text, pattern, perl = TRUE))
+  return(sentences)
+}
+
+last_word_p <- function(text) {
+  # first we need to split the text into sentences
+  sentences <- tokenize_sentences(text)
+  # create a dataframe to store the last word of each sentence and its punctuation
+  sentence_endings <- lapply(sentences, function(sentence) {
+    # extract the last word
+    last_word <- sub("\\W+$", "", sentence)
+    last_word <- tail(unlist(strsplit(last_word, "\\s+")), 1)
+    
+    punctuation <- regmatches(sentence, regexpr("\\W+$", sentence))
+    
+    data.frame(last_word = last_word, 
+               punctuation = punctuation, 
+               stringsAsFactors = FALSE)
+  })
+  
+  df <- do.call(rbind, sentence_endings)
+  
+  tran_df <- df %>% 
+    group_by(last_word, punctuation) %>%  
+    summarise(count = n(), .groups = 'drop') %>% # count occurrences of each combination
+    group_by(last_word) %>% # normalize to get the transition probability
+    mutate(prob = count/sum(count)) %>% 
+    ungroup() %>% 
+    select(last_word, punctuation, prob)
+  
+  return(tran_df)
+}
+
+add_special_token <- function(text){
+  # add start and end tokens to each sentence
+  # first we need to split the text into sentences
+  sentences <- tokenize_sentences(text)
+  
+  # add start and end tokens to each sentence
+  sentences <- lapply(sentences, function(sentence) {
+    # paste("<s>", sentence, "</s>")
+    # replace the punctuation with </s>
+    sentence <- sub("\\W+$", " </s>", sentence)
+  })
+  
+  text <- paste(sentences, collapse = " ")
+  return(text)
+}
 
 
 # now we need to get the n_gram transition probability, 
@@ -81,11 +139,19 @@ generate_transition_prob <- function(n_grams){
 
 # now we can train the model using the functions above
 train_model <- function(directory, n=2){
-  # first we need to get the tokens
-  tokens <- load_train_data(directory)
+  # first we need to get the text and preprocess it
+  train_data <- load_train_data(directory)
+  text <- preprocess(train_data)
   
-  # then we need to preprocess the tokens
-  tokens <- preprocess(tokens)
+  # get the ending words and punctuation df
+  last_word <- last_word_p(text)
+  
+  # add start and end tokens to each sentence
+  
+  text <- add_special_token(text)
+  tokens <- tokenize_words(text)
+
+  ##### now we are going to get the transition probability ####
   
   # then we need to generate the n_grams
   n_grams <- generate_n_grams(tokens, n)
@@ -93,49 +159,89 @@ train_model <- function(directory, n=2){
   # then we need to get the transition probability
   transition_prob <- generate_transition_prob(n_grams)
   
-  return(transition_prob)
+  model <- list(transition_prob = transition_prob, 
+                last_word = last_word)
+  
+  return(model)
 }
 
-baby_model <- train_model("train", 2)
+baby_model <- train_model("train", 3)
 # now we can use the model to generate the text
 
-generate_text <- function(model, length){
+generate_text <- function(model, length, feed = NULL, n = 2){
   # first we need to get the transition probability
-  transition_prob <- model
+  transition_prob <- model$transition_prob
+  last_word_prob <- model$last_word
   
   # then we need to get the first word
-  first_word <- sample(transition_prob$previous, 1)
+  # if the user feed some context, we use the context as the first ngram
+  # if not, we randomly sample the first word
+  if (!is.null(feed)){
+    first_ngram <- tolower(feed)
+    if (length(feed) >= length){
+      stop("The length of the feed is longer than the length of the text requested")
+    }
+  }
+  else {
+    first_ngram <- sample(transition_prob$previous, 1)
+  }
   
-  # then we need to get the second word
-  second_word <- sample(transition_prob %>% 
-                          filter(previous == first_word) %>% 
-                          select(current) %>% 
-                          unlist(), 1)
-  
-  # then we need to get the text
-  text <- c(first_word, second_word)
+  # first split the first ngram into words
+  first_ngram <- unlist(strsplit(first_ngram, "\\s+"))
+
+  text <- character(0)
+  text <- c(text, first_ngram)
+  print(text)
   
   # then we need to get the rest of the text
-  for (i in 3:length){
-    # get the previous word
-    previous_word <- text[i-1]
+  word_count <- length(text)
+  start_pos <- length(text) + 1
+  while (word_count < length){
+    # get the previous n-1 words
+    i <- start_pos
+    start <- i-1 - (n-2)
+    end <- i-1
+
+    previous_ngram <- text[start:end]
+    previous_ngram <- paste(previous_ngram, collapse = " ")
+    print(previous_ngram)
     
-    # get the possibe next words
+    # get the possible next words at i-th position
     next_words <- transition_prob %>% 
-      filter(previous == previous_word) %>%
+      filter(previous == previous_ngram) %>%
       select(current, prob)
-    
+
     # get the current word
     current_word <- sample(next_words$current, 1, prob = next_words$prob)
+    print(current_word)
+  
+    if (current_word != "</s>") {
+      word_count <- word_count + 1
+    }
     
     # add the current word to the text
     text <- c(text, current_word)
+    i <- i + 1
   }
   
+  ### remove end token with punctuation ###
+  
+  # for (i in 1:length(text)){
+  #   if (text[i] == "</s>"){
+  #       prev_word <- text[i-1]
+  #       available_punctuation <- last_word_prob$punctuation %>% 
+  #         filter(last_word == prev_word)
+  #       punctuation <- sample(available_punctuation$punctuation, 
+  #                             1,
+  #                             prob = available_punctuation$prob)
+  #       text[i] <- punctuation
+  #   }
+  # }
+  # 
   return(text)
 }
 
-sample <- generate_text(baby_model, 100)
+sample <- generate_text(baby_model, 100, n=3, feed = "sherlock holmes")
 # now we need to print the text, a readable version
 # we will capitalize the first letter of the first word and the words after
 # the punctuation. 
