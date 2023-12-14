@@ -1,6 +1,6 @@
 # first we need to import the data for training
 
-setwd("/Users/aolongli/Desktop/2023-Fall/S610/final") 
+setwd("/Users/aolongli/Desktop/2023-Fall/S610/S610-final-project") 
 library(dplyr)
 
 # read the data from the folder 
@@ -41,6 +41,9 @@ tokenize_sentences <- function(text){
   sentences <- unlist(strsplit(text, pattern, perl = TRUE))
   return(sentences)
 }
+
+a <- tokenize_sentences("This is a sentence containing Mr. feet 2.3 life. ha!")
+print(a)
 
 last_word_p <- function(text) {
   # first we need to split the text into sentences
@@ -117,7 +120,7 @@ generate_transition_prob <- function(n_grams){
   # the value is the transition probability
   
   # df <- data.frame(matrix(0, nrow = 0, ncol = 0))
-
+  
   # now we populate the df with x[1:(n-1)] as previous, x[n] as current
   df <- do.call(rbind, lapply(n_grams, function(x) {
     data.frame(previous = x[1], current = x[2])
@@ -151,7 +154,7 @@ train_model <- function(directory, n=2){
   
   text <- add_special_token(text)
   tokens <- tokenize_words(text)
-
+  
   ##### now we are going to get the transition probability ####
   
   # then we need to generate the n_grams
@@ -186,32 +189,32 @@ generate_text <- function(model, len, feed = "", n = 2){
   
   # first split the first ngram into words
   first_ngram <- unlist(strsplit(first_ngram, "\\s+"))
-
+  
   text <- character(0)
   text <- c(text, first_ngram)
   
   # then we need to get the rest of the text
   word_count <- length(text)
   i <- length(text) + 1 # the index of the next word
-
+  
   while (word_count < len | text[length(text)] != "</s>"){
     # get the previous n-1 words
-
+    
     start <- i-1 - (n-2)
     end <- i-1
-
+    
     previous_ngram <- text[start:end]
     previous_ngram <- paste(previous_ngram, collapse = " ")
-
+    
     
     # get the possible next words at i-th position
     next_words <- transition_prob %>% 
       filter(previous == previous_ngram) 
-
+    
     # get the current word
     current_word <- sample(next_words$current, 1, prob = next_words$prob)
-
-  
+    
+    
     if (current_word != "</s>") {
       word_count <- word_count + 1
     }
@@ -223,24 +226,24 @@ generate_text <- function(model, len, feed = "", n = 2){
   
   ### remove end token with punctuation ###
   print(text)
-
+  
   for (i in 1:length(text)){
     if (text[i] == "</s>"){
-        prev_word <- text[i-1]
-        print(prev_word)
-        prev_word <- paste(prev_word, "")
-        available_punctuation <- last_word_prob%>%
-          filter(last_word == prev_word)
-        print(available_punctuation)
-        punctuation <- sample(available_punctuation$punctuation,
-                              1,
-                              prob = available_punctuation$prob)
-        text[i] <- punctuation
+      prev_word <- text[i-1]
+      print(prev_word)
+      prev_word <- paste(prev_word, "")
+      available_punctuation <- last_word_prob%>%
+        filter(last_word == prev_word)
+      print(available_punctuation)
+      punctuation <- sample(available_punctuation$punctuation,
+                            1,
+                            prob = available_punctuation$prob)
+      text[i] <- punctuation
     }
   }
-
+  
   ###
-
+  
   return(text)
 }
 
@@ -269,7 +272,7 @@ generate_readable_text <- function(text){
       text[i] <- capitalize_first_letter(text[i])
     }
   }
-
+  
   # then we need to add space between the words
   # if the next word is a punctuation, no need to add a space.
   for (i in 2:length(text)){
@@ -295,4 +298,3 @@ cat(generate_readable_text(sample))
 
 # save the model
 saveRDS(basic_model, "basic_model.rds")
-

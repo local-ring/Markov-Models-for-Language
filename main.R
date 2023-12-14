@@ -3,30 +3,36 @@ source("training.R")
 
 # get the input from the user
 main <- function(){
-  n <- as.integer(readline("Please enter the n: "))
-  feed <- readline("Please enter your context: ")
-  length <- as.integer(readline("Please enter the total length of text: "))
-  new_model <- readline("Do you want to train a new model? (y/n): ")
-  
-  if (new_model == "y"){
-    model <- train_model("train", n)
-    saveRDS(model, "model/user_model.rds")
-    sample <- generate_text(model, length, n, feed = feed)
+  while(TRUE){
+    n <- as.integer(readline("Please enter the n: "))
+    feed <- readline("Please enter your context: ")
+    length <- as.integer(readline("Please enter the total length of text: "))
+    new_model <- readline("Do you want to train a new model? (y/n): ")
     
-    cat(generate_readable_text(sample))
-  } else {
-    # list all valid models]
-    models <- list.files("model", pattern = "*.rds")
-    cat("The following models are available:\n")
-    for (i in 1:length(models)){
-      cat(models[i], "\n")
+    if (new_model == "y"){
+      model <- train_model("train", n)
+      saveRDS(model, "model/user_model.rds")
+      sample <- generate_text(model, length, n, feed = feed)
+      
+      cat(generate_readable_text(sample))
+    } else {
+      # list all valid models
+      models <- list.files("model", pattern = "*.rds")
+      cat("The following models are available:\n")
+      for (i in 1:length(models)){
+        cat(models[i], "\n")
+      }
+      model_name <- readline("Please enter the name of the model: ")
+      # load the model
+      model_path <- paste0("model/", model_name)
+      model <- readRDS(model_path)
+      sample <- generate_text(model, length, n, feed = feed)
+      cat(generate_readable_text(sample))
     }
-    model_name <- readline("Please enter the name of the model: ")
-    # load the model
-    model_path <- paste0("model/", model_name)
-    model <- readRDS(model_path)
-    sample <- generate_text(model, length, n, feed = feed)
-    cat(generate_readable_text(sample))
+    exit <- readline("Do you want to exit? (y/n): ")
+    if (exit == "y"){
+      break
+    }
   }
 }
 
@@ -36,8 +42,12 @@ generate_text <- function(model, len=50, feed = "", n = 2){
   
   if (feed != ""){
     first_ngram <- tolower(feed)
+    feed <- unlist(strsplit(feed, "\\s+"))
     if (length(feed) >= len){
       stop("The length of the feed is longer than the length of the text requested")
+    }
+    else if (length(feed) < n-1){
+      stop("The length of the feed is shorter than the n-1")
     }
   }
   else {
@@ -60,6 +70,10 @@ generate_text <- function(model, len=50, feed = "", n = 2){
 
     next_words <- transition_prob %>% 
       filter(previous == previous_ngram) 
+    
+    if (nrow(next_words) == 0){
+      stop("You input some words not included in the training data")
+    }
 
     current_word <- sample(next_words$current, 1, prob = next_words$prob)
 
