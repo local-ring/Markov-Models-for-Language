@@ -1,0 +1,3 @@
+load("/Users/aolongli/Desktop/2023-Fall/S610/S610-final-project/model/sh_model.rds")
+~/Desktop/2023-Fall/S610/S610-final-project/model/sh_model.rds
+load("/Users/aolongli/Desktop/2023-Fall/S610/S610-final-project/model/sh1_model.rds")
