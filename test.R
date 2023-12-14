@@ -40,11 +40,11 @@ test_that("all last word probabilities are between 0 and 1", {
 test_that("last word probabilities are valid", {
   expect_true(all(last_word$prob >= 0 & last_word$prob <= 1))
   
-  summed_last_word_probs <- last_word %>%
+  last_word_probs <- last_word %>%
     group_by(last_word) %>%
     summarise(sum_prob = sum(prob))
   
-  expect_true(all(abs(summed_last_word_probs$sum_prob - 1) < .Machine$double.eps^0.5))
+  expect_true(all(abs(last_word_probs$sum_prob - 1) < .Machine$double.eps^0.5))
 })
 
 
@@ -55,8 +55,8 @@ test_that("tokenize_words splits text into words correctly", {
 })
 
 test_that("tokenize_sentences splits text into sentences correctly", {
-  test_text <- "This is a sentence. And another one!"
-  expected_output <- c("This is a sentence.", "And another one!")
+  test_text <- "This is a sentence containing Mr. 3.0 feet. ha!"
+  expected_output <- c("This is a sentence containing Mr. 3.0 feet.", "ha!")
   expect_equal(tokenize_sentences(test_text), expected_output)
 })
 
@@ -66,8 +66,4 @@ test_that("generate_n_grams generates correct n-grams", {
   expected_output <- list(c("This", "is"), c("is", "a"), c("a", "test"))
   expect_equal(generate_n_grams(tokens, n), expected_output)
 })
-
-
-
-
 
