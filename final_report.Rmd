@@ -13,6 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 In this project, we aim to develop a text generation model using Markov chain principles. The primary goal is to build a system that can read a corpus of text, learn the patterns in sentence structure and word usage, and then generate new, coherent text based on this learning.
 
+All the code is available on this [\textcolor{blue}{GitHub repo}](https://github.com/local-ring/S610-final-project/tree/main).
+
 The theory behind this model is that we treat each word in a sentence as a random variable with various states, and the probability of transitioning from one word to another is the transition probability. The markov assumption is that the probability of a word depends only on the previous word. We can generalize this to so-called $n$-gram model, that is, the probability of a word depends on the previous $n-1$ words. The larger the $n$, the more complex the model, but the more accurate the prediction because it captures more information about the structure of the text. So, we need to find the transition probability by analyzing the training text. Then, we can use this probability to generate new text.
 
 Our objectives are to:
