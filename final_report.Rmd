@@ -96,16 +96,24 @@ For training part, before we add special token `</s>` to the end of each sentenc
 
 ```{r}
 train_model <- function(directory, n=2){
+  # first we need to get the text and preprocess it
   train_data <- load_train_data(directory)
   text <- preprocess(train_data)
   
+  # get the ending words and punctuation df
   last_word <- last_word_p(text)
   
+  # add start and end tokens to each sentence
   text <- add_special_token(text)
   tokens <- tokenize_words(text)
 
+  ##### now we are going to get the transition probability ####
+  # twe need to generate the n_grams
   n_grams <- generate_n_grams(tokens, n)
+  
+  # then we need to get the transition probability
   transition_prob <- generate_transition_prob(n_grams)
+  
   model <- list(transition_prob = transition_prob, 
                 last_word = last_word)
   return(model)
@@ -114,8 +122,113 @@ train_model <- function(directory, n=2){
 
 ### Text Generation
 
-The `generate_text` function uses these transition probabilities to generate new text. It starts with a seed (or random) word and selects subsequent words based on the calculated probabilities, thus generating a coherent text sequence.
+The `generate_text` function uses these transition probabilities to generate new text. It starts with a user-entered seed (or random) word and selects subsequent words based on the calculated probabilities, thus generating a coherent text sequence. We use filter to get all possible next words, and then use `sample` to randomly select one word based on the probability. We will stop generating text if we generate enough text (with a special token `</s>` to make sure the text is complete). We also add some if-else to deal with the edge cases, like if the user input is not in the training text, or user didn't enter text with enough words to generate text.
+
+```{r}
+generate_text <- function(model, len=50, feed = "", n = 2){
+  transition_prob <- model$transition_prob
+  last_word_prob <- model$last_word
+  
+  # if the user feed some context, we use the context as the first n-gram
+  # if not, we randomly sample the first n-gram
+  if (feed != ""){
+    first_ngram <- tolower(feed)
+    feed <- unlist(strsplit(feed, "\\s+"))
+    if (length(feed) >= len){
+      stop("The length of the feed is longer than the length of the text requested")
+    }
+    else if (length(feed) < n-1){
+      stop("The length of the feed is shorter than the n-1")
+    }
+  }
+  else {
+    first_ngram <- sample(transition_prob$previous, 1)
+  }
+  first_ngram <- unlist(strsplit(first_ngram, "\\s+"))
+
+  text <- character(0)
+  text <- c(text, first_ngram)
+
+  word_count <- length(text)
+  i <- length(text) + 1 
+
+  while (word_count < len | text[length(text)] != "</s>"){
+    start <- i-1 - (n-2)
+    end <- i-1
+
+    previous_ngram <- text[start:end]
+    previous_ngram <- paste(previous_ngram, collapse = " ")
+
+    next_words <- transition_prob %>% 
+      filter(previous == previous_ngram) 
+    
+    if (nrow(next_words) == 0){
+      stop("You input some words not included in the training data")
+    }
+
+    current_word <- sample(next_words$current, 1, prob = next_words$prob)
+
+  
+    if (current_word != "</s>") {
+      word_count <- word_count + 1
+    }
+    
+    text <- c(text, current_word)
+    i <- i + 1
+  }
+  
+  # we replace </s> with punctuation learned from training data
+  for (i in 1:length(text)){
+    if (text[i] == "</s>"){
+        prev_word <- text[i-1]
+        # this line can make sure prev_word in the last_word_prob
+        prev_word <- paste(prev_word, "")
+        available_punctuation <- last_word_prob%>%
+          filter(last_word == prev_word)
+        punctuation <- sample(available_punctuation$punctuation,
+                              1,
+                              prob = available_punctuation$prob)
+        text[i] <- punctuation
+    }
+  }
+  return(text)
+}
+```
+
+Since the generated text is all in lower-case, we also add several functions to make them more readable. We will capitalize the first letter of the first word and the words after the punctuation. Also, we add space between the words and if the next word is a punctuation, no need to add a space.
+
+Furthermore, we don't need to train the model every time we generate text. Because when $n\geq 3$, it took a long time to train the model. We can save the model and load it next time. We use `saveRDS` to save the model and `readRDS` to load the model. I trained several models based on the all available Sherlock Holmes books with different $n$ value:
+
+-   sh_model.rds: $n=3$ trigram model
+
+-   sh1_model.rds: $n=1$ unigram model, that is, each word is independent
+
+-   sh2_model.rds: $n=2$ bigram model
+
+The best model in terms of generating text is the trigram model, the below is an example of the generated text with feed "Sherlock Holmes":
+
+> Sherlock holmes struck his hands together in silence. He would come! Far from our souls like the muzzle within two years has done harm to befall poor young master, whom i lived? But none had fallen silent, puffing thoughtfully at his straggling beard! On june 3rd, that is, on the shoulder. Take my husband s despatch box brought in to know which is known to him, and as i glanced down at the back of the region of surds and conic sections with little giggling laughs in between, but somehow this case from baker street. If your visitor wear a mask peeled off under the window.
+
+the following is the generated text with no feed:
+
+> Was never better. He asked, pointing to one thing, said i, laughing but since, as i remarked. I ve been. None did come it was of a fellow lodger. If they give us an appointment with sir henry, and perhaps the wealthiest. I should say. I have always distinguished my friend has not had any family. It was the band! Ah, then, we will leave the country side. Is it, then?" mrs. Vandeleur, who at once, at least three inches. You must comply with the asceticism of complete satisfaction upon his left boot has a horse was fresh and glossy when you expect me to be back for the brother is dead.
+
+I contained more generated text of various models of different versions (with less training text or rough text preprocessing during my developing stage) in the log file `log.md`.
+
+In the `main.R`, I write a small UI to interact with the user. The user can choose the model and the length of the generated text. Also, the user can input some context to generate the text. User can run this script directly to get the text following the instruction.
 
 ## Evidence of Functionality
 
-We conducted several tests to validate each function. For example, the tokenization functions correctly split text into words and sentences, handling edge cases like abbreviations and decimal points. The transition probability calculations were verified to sum to 1 for each word, ensuring mathematical correctness.
+We conducted several tests to validate each function. The test functions are included in the `test.R`. For example, the tokenization functions correctly split text into words and sentences, handling edge cases like abbreviations and decimal points. The transition probability calculations were verified to sum to 1 for each word, ensuring mathematical correctness.
+
+```
+test_that("sum of probabilities for each previous state is 1", {
+  summed_probs <- transition_prob %>%
+    group_by(previous) %>%
+    summarise(sum_prob = sum(prob))
+  
+  expect_true(all(abs(summed_probs$sum_prob - 1) < .Machine$double.eps^0.5))
+})
+```
+
+Also, in the `final.R` file, which is the original script for the project, it contains a lot of comments and explanations for each function which mainly helps me think through the logic of the function when I was developing the project.
