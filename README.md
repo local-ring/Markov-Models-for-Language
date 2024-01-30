@@ -10,7 +10,7 @@ We have following files
 - `test.R`: contains test functions to validate the design 
 - `final.R`: contains all the functions with the comments helped me think, the most primitive version, included for memorial. The above three are clean and free from my ramble
 
-Also there are severl explanatory files like `log.md` which records some result during the developing time, and `final_report.Rmd`.
+Also there are several explanatory files like `log.md` which records some result during the developing time, and `final_report.Rmd`.
 
 We have three folders:
 
